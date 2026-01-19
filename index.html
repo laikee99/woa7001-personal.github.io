@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sensor Network Anomaly Detection - WOA7001</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-primary: #f8fafc;
+            --bg-secondary: #ffffff;
+            --bg-card: #f1f5f9;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --accent-blue: #2563eb;
+            --accent-green: #16a34a;
+            --accent-red: #dc2626;
+            --accent-yellow: #ca8a04;
+            --accent-purple: #9333ea;
+            --border: #e2e8f0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2563eb, #3b82f6);
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid var(--border);
+            color: white;
+        }
+
+        .header h1, .header .subtitle {
+            color: white;
+        }
+
+        .header .subtitle {
+            opacity: 0.9;
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .header .subtitle {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        .main-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            padding: 1rem;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            padding: 1.25rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+
+        .card-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .card-title::before {
+            content: '';
+            width: 4px;
+            height: 18px;
+            background: var(--accent-blue);
+            border-radius: 2px;
+        }
+
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        /* Sensor Data Table */
+        .sensor-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        .sensor-table th,
+        .sensor-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .sensor-table th {
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .sensor-table tr:hover {
+            background: var(--bg-card);
+        }
+
+        .status-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .status-normal { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); }
+        .status-anomaly { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+        .status-missing { background: rgba(234, 179, 8, 0.2); color: var(--accent-yellow); }
+        .status-spoofed { background: rgba(168, 85, 247, 0.2); color: var(--accent-purple); }
+
+        .confidence-bar {
+            width: 60px;
+            height: 6px;
+            background: var(--bg-card);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.3s;
+        }
+
+        /* Streaming Chart */
+        .chart-container {
+            height: 300px;
+            position: relative;
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            border: none;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.875rem;
+        }
+
+        .btn-primary {
+            background: var(--accent-blue);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2563eb;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Reconstruction Panel */
+        .recon-section {
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .recon-title {
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: var(--accent-yellow);
+        }
+
+        .recon-formula {
+            font-family: 'Courier New', monospace;
+            background: #e2e8f0;
+            padding: 0.75rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            margin: 0.5rem 0;
+            overflow-x: auto;
+            color: #334155;
+        }
+
+        .recon-result {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-top: 0.75rem;
+        }
+
+        .result-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-green);
+        }
+
+        .result-ci {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        /* CMS Visualization */
+        .cms-grid {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            gap: 2px;
+            margin-top: 0.75rem;
+        }
+
+        .cms-cell {
+            aspect-ratio: 1;
+            background: #e2e8f0;
+            border-radius: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.6rem;
+            color: #64748b;
+            transition: all 0.3s;
+        }
+
+        .cms-cell.active {
+            background: #93c5fd;
+            color: #1e40af;
+        }
+
+        .cms-cell.hit {
+            background: #86efac;
+            color: #166534;
+        }
+
+        /* Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 1rem;
+            background: #f1f5f9;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--accent-blue);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        /* Algorithm Info */
+        .algo-info {
+            background: #f1f5f9;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            font-size: 0.85rem;
+        }
+
+        .algo-info h4 {
+            color: var(--accent-blue);
+            margin-bottom: 0.5rem;
+        }
+
+        .algo-info ul {
+            margin-left: 1.25rem;
+            color: var(--text-secondary);
+        }
+
+        .algo-info li {
+            margin-bottom: 0.25rem;
+        }
+
+        /* Streaming Log */
+        .log-container {
+            height: 200px;
+            overflow-y: auto;
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.75rem;
+            font-family: monospace;
+            font-size: 0.75rem;
+        }
+
+        .log-entry {
+            padding: 0.25rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .log-entry.anomaly {
+            color: var(--accent-red);
+        }
+
+        .log-entry.missing {
+            color: var(--accent-yellow);
+        }
+
+        /* Region Legend */
+        .region-legend {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            font-size: 0.8rem;
+        }
+
+        .region-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .region-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .region-r2 { background: var(--accent-red); }
+        .region-r3 { background: var(--accent-yellow); }
+        .region-r4 { background: var(--accent-green); }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Sensor Network Anomaly Detection Pipeline</h1>
+        <div class="subtitle">WOA7001 Advanced Algorithm - Individual Take Home Exam (Case Study A)</div>
+    </div>
+
+    <div class="main-container">
+        <!-- Stats Overview -->
+        <div class="card full-width">
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-value" id="stat-total">10</div>
+                    <div class="stat-label">Total Sensors</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="stat-anomalies" style="color: var(--accent-red)">3</div>
+                    <div class="stat-label">Alert/Suspicious</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="stat-spoofed" style="color: var(--accent-purple)">1</div>
+                    <div class="stat-label">Spoofed</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="stat-missing" style="color: var(--accent-yellow)">2</div>
+                    <div class="stat-label">Missing/Reconstructed</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sensor Data Table -->
+        <div class="card">
+            <div class="card-title">Sensor Data (Dataset Fragment)</div>
+            <div class="region-legend">
+                <div class="region-item"><div class="region-dot region-r2"></div> R2 (High Risk)</div>
+                <div class="region-item"><div class="region-dot region-r3"></div> R3 (High Risk)</div>
+                <div class="region-item"><div class="region-dot region-r4"></div> R4 (Normal)</div>
+            </div>
+            <table class="sensor-table">
+                <thead>
+                    <tr>
+                        <th>Sensor</th>
+                        <th>Region</th>
+                        <th>Reading</th>
+                        <th>Confidence</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="sensor-table-body">
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Probabilistic Reconstruction -->
+        <div class="card">
+            <div class="card-title">Probabilistic Reconstruction (Q2)</div>
+
+            <div class="recon-section">
+                <div class="recon-title">S204 Reconstruction (Region R3)</div>
+                <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 0.5rem;">
+                    Using neighbors: S205 (152, conf=0.55), S206 (150, conf=0.93), S210 (153, conf=0.61)
+                </p>
+                <div class="recon-formula">
+                    w_i = confidence_i / variance_i<br>
+                    x&#x0302; = (w1*152 + w2*150 + w3*153) / (w1 + w2 + w3)<br>
+                    w1=0.1375, w2=0.93, w3=0.0976
+                </div>
+                <div class="recon-result">
+                    <div class="result-value" id="s204-result">150.49</div>
+                    <div class="result-ci">95% CI: [147.56, 153.41] | Uncertainty: 1.49</div>
+                </div>
+            </div>
+
+            <div class="recon-section">
+                <div class="recon-title">S209 Reconstruction (Region R2)</div>
+                <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 0.5rem;">
+                    Using neighbors: S201 (57, conf=0.91), S202 (141, conf=0.74)<br>
+                    <span style="color: var(--accent-red)">S203 excluded due to suspected spoofing (conf=0.18)</span>
+                </p>
+                <div class="recon-formula">
+                    w1 = 0.91/4 = 0.2275, w2 = 0.74/9 = 0.0822<br>
+                    x&#x0302; = (0.2275*57 + 0.0822*141) / (0.2275 + 0.0822)
+                </div>
+                <div class="recon-result">
+                    <div class="result-value" id="s209-result">79.30</div>
+                    <div class="result-ci">95% CI: [-29.75, 188.35] | <span style="color: var(--accent-yellow)">High uncertainty: 55.64</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Streaming Simulation -->
+        <div class="card full-width">
+            <div class="card-title">Streaming Anomaly Detection Simulation</div>
+            <div class="controls">
+                <button class="btn btn-primary" id="btn-start">Start Simulation</button>
+                <button class="btn btn-secondary" id="btn-pause" disabled>Pause</button>
+                <button class="btn btn-secondary" id="btn-reset">Reset</button>
+                <span style="margin-left: auto; color: var(--text-secondary); font-size: 0.85rem;">
+                    Speed: <select id="speed-select" style="background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border); padding: 0.25rem; border-radius: 4px;">
+                        <option value="200">Fast</option>
+                        <option value="500" selected>Normal</option>
+                        <option value="1000">Slow</option>
+                    </select>
+                </span>
+            </div>
+            <div class="chart-container">
+                <canvas id="streaming-chart"></canvas>
+            </div>
+        </div>
+
+        <!-- Count-Min Sketch Visualization -->
+        <div class="card">
+            <div class="card-title">Count-Min Sketch Visualization</div>
+            <div class="algo-info">
+                <h4>How it works:</h4>
+                <ul>
+                    <li>Uses d=4 hash functions, w=10 counters each</li>
+                    <li>Each reading hashes to 4 positions (one per row)</li>
+                    <li>Frequency estimate = min of all 4 counters</li>
+                    <li>Memory: O(d*w) = O(40) - constant!</li>
+                </ul>
+            </div>
+            <p style="margin: 1rem 0 0.5rem; font-size: 0.8rem; color: var(--text-secondary);">
+                Hash Table (4 rows x 10 cols):
+            </p>
+            <div class="cms-grid" id="cms-grid">
+            </div>
+            <p style="margin-top: 0.75rem; font-size: 0.75rem; color: var(--text-secondary);">
+                Current query: <span id="cms-query">-</span> |
+                Estimated frequency: <span id="cms-freq">-</span>
+            </p>
+        </div>
+
+        <!-- Detection Log -->
+        <div class="card">
+            <div class="card-title">Real-time Detection Log</div>
+            <div class="log-container" id="log-container">
+                <div class="log-entry">System initialized. Ready to process data stream...</div>
+            </div>
+        </div>
+
+        <!-- Algorithm Comparison -->
+        <div class="card full-width">
+            <div class="card-title">Algorithm Comparison (Q3)</div>
+            <table class="sensor-table">
+                <thead>
+                    <tr>
+                        <th>Criteria</th>
+                        <th>Randomised (CMS + Monte Carlo)</th>
+                        <th>Deterministic (Z-Score)</th>
+                        <th>Deterministic (K-Means)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Scalability</strong></td>
+                        <td style="color: var(--accent-green)">O(1) memory per sensor</td>
+                        <td style="color: var(--accent-yellow)">O(n) - stores all history</td>
+                        <td style="color: var(--accent-red)">O(n*k) - recomputation needed</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Error Tolerance</strong></td>
+                        <td style="color: var(--accent-green)">Approximate but bounded</td>
+                        <td style="color: var(--accent-yellow)">Exact but outlier-sensitive</td>
+                        <td style="color: var(--accent-yellow)">Sensitive to initialization</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Real-time Suitability</strong></td>
+                        <td style="color: var(--accent-green)">Excellent - O(1) per reading</td>
+                        <td style="color: var(--accent-yellow)">Good - O(1) update</td>
+                        <td style="color: var(--accent-red)">Poor - batch recomputation</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Adversarial Resistance</strong></td>
+                        <td style="color: var(--accent-green)">High - MIDAS-F filtering</td>
+                        <td style="color: var(--accent-red)">Low - easily poisoned</td>
+                        <td style="color: var(--accent-red)">Low - centroid manipulation</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // =================================================================
+        // Sensor Data
+        // =================================================================
+        const sensorData = [
+            { sensor: 'S201', region: 'R2', reading: 57, confidence: 0.91, notes: 'Normal' },
+            { sensor: 'S202', region: 'R2', reading: 141, confidence: 0.74, notes: 'High but stable' },
+            { sensor: 'S203', region: 'R2', reading: 149, confidence: 0.18, notes: 'Likely spoofed' },
+            { sensor: 'S204', region: 'R3', reading: null, confidence: 0.88, notes: 'Connectivity drop' },
+            { sensor: 'S205', region: 'R3', reading: 152, confidence: 0.55, notes: 'Noise suspected' },
+            { sensor: 'S206', region: 'R3', reading: 150, confidence: 0.93, notes: 'High reading' },
+            { sensor: 'S207', region: 'R4', reading: 31, confidence: 0.97, notes: 'Normal' },
+            { sensor: 'S208', region: 'R4', reading: 29, confidence: 0.94, notes: 'Normal' },
+            { sensor: 'S209', region: 'R2', reading: null, confidence: 0.12, notes: 'Very low-quality signal' },
+            { sensor: 'S210', region: 'R3', reading: 153, confidence: 0.61, notes: 'Sudden spike' },
+        ];
+
+        // =================================================================
+        // Detection Constants (must match Python code)
+        // =================================================================
+        const ANOMALY_THRESHOLD = 145;
+        const CONFIDENCE_THRESHOLD = 0.5;
+        const HIGH_RISK_REGIONS = ['R2', 'R3'];
+
+        // =================================================================
+        // Populate Sensor Table
+        // =================================================================
+        function populateSensorTable() {
+            const tbody = document.getElementById('sensor-table-body');
+            tbody.innerHTML = '';
+
+            sensorData.forEach(data => {
+                let status, statusClass, reason = '';
+
+                // Detection logic matching Python code exactly
+                if (data.reading === null) {
+                    status = 'MISSING';
+                    statusClass = 'status-missing';
+                    reason = 'Connectivity drop / corrupted signal';
+                } else if (data.confidence < CONFIDENCE_THRESHOLD) {
+                    status = 'SPOOFED';
+                    statusClass = 'status-spoofed';
+                    reason = `Low confidence (${data.confidence.toFixed(2)}) suggests spoofing`;
+                } else if (data.reading > ANOMALY_THRESHOLD) {
+                    if (data.confidence < 0.7) {
+                        status = 'SUSPICIOUS';
+                        statusClass = 'status-anomaly';
+                        reason = `High reading (${data.reading}) with moderate confidence`;
+                    } else if (HIGH_RISK_REGIONS.includes(data.region)) {
+                        status = 'ALERT';
+                        statusClass = 'status-anomaly';
+                        reason = `High reading in high-risk zone ${data.region}`;
+                    } else {
+                        status = 'NORMAL';
+                        statusClass = 'status-normal';
+                        reason = 'High but stable with good confidence';
+                    }
+                } else {
+                    status = 'NORMAL';
+                    statusClass = 'status-normal';
+                }
+
+                const confColor = data.confidence > 0.7 ? 'var(--accent-green)' :
+                                  data.confidence > 0.4 ? 'var(--accent-yellow)' : 'var(--accent-red)';
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td><strong>${data.sensor}</strong></td>
+                        <td>${data.region}</td>
+                        <td>${data.reading !== null ? data.reading : '<span style="color: var(--accent-yellow)">?</span>'}</td>
+                        <td>
+                            <div class="confidence-bar">
+                                <div class="confidence-fill" style="width: ${data.confidence * 100}%; background: ${confColor}"></div>
+                            </div>
+                            <span style="font-size: 0.75rem; color: var(--text-secondary)">${data.confidence.toFixed(2)}</span>
+                        </td>
+                        <td><span class="status-badge ${statusClass}">${status}</span></td>
+                    </tr>
+                `;
+            });
+        }
+
+        // =================================================================
+        // Count-Min Sketch Simulation
+        // =================================================================
+        class CountMinSketch {
+            constructor(width = 10, depth = 4) {
+                this.width = width;
+                this.depth = depth;
+                this.table = Array(depth).fill(null).map(() => Array(width).fill(0));
+                this.totalCount = 0;
+            }
+
+            hash(key, i) {
+                let h = 0;
+                const str = String(key) + String(i);
+                for (let c of str) {
+                    h = ((h << 5) - h) + c.charCodeAt(0);
+                    h |= 0;
+                }
+                return Math.abs(h) % this.width;
+            }
+
+            update(key) {
+                for (let i = 0; i < this.depth; i++) {
+                    const idx = this.hash(key, i);
+                    this.table[i][idx]++;
+                }
+                this.totalCount++;
+            }
+
+            estimate(key) {
+                let min = Infinity;
+                for (let i = 0; i < this.depth; i++) {
+                    const idx = this.hash(key, i);
+                    min = Math.min(min, this.table[i][idx]);
+                }
+                return min;
+            }
+
+            getPositions(key) {
+                return Array(this.depth).fill(0).map((_, i) => ({ row: i, col: this.hash(key, i) }));
+            }
+        }
+
+        const cms = new CountMinSketch(10, 4);
+
+        function initCMSGrid() {
+            const grid = document.getElementById('cms-grid');
+            grid.innerHTML = '';
+            for (let i = 0; i < 4; i++) {
+                for (let j = 0; j < 10; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cms-cell';
+                    cell.id = `cms-${i}-${j}`;
+                    cell.textContent = '0';
+                    grid.appendChild(cell);
+                }
+            }
+        }
+
+        function updateCMSDisplay(key, isQuery = false) {
+            // Reset all cells
+            for (let i = 0; i < 4; i++) {
+                for (let j = 0; j < 10; j++) {
+                    const cell = document.getElementById(`cms-${i}-${j}`);
+                    cell.textContent = cms.table[i][j];
+                    cell.className = 'cms-cell' + (cms.table[i][j] > 0 ? ' active' : '');
+                }
+            }
+
+            // Highlight query positions
+            if (key !== undefined) {
+                const positions = cms.getPositions(key);
+                positions.forEach(pos => {
+                    const cell = document.getElementById(`cms-${pos.row}-${pos.col}`);
+                    cell.classList.add('hit');
+                });
+
+                document.getElementById('cms-query').textContent = `bin_${key}`;
+                document.getElementById('cms-freq').textContent = cms.estimate(key);
+            }
+        }
+
+        // =================================================================
+        // Streaming Chart
+        // =================================================================
+        let streamingChart;
+        let streamData = [];
+        let anomalyPoints = [];
+        let missingPoints = [];
+        let simulationInterval;
+        let currentIndex = 0;
+        let isPaused = false;
+
+        function initChart() {
+            const ctx = document.getElementById('streaming-chart').getContext('2d');
+            streamingChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Sensor Reading',
+                            data: [],
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            fill: true,
+                            tension: 0.3,
+                            pointRadius: 2
+                        },
+                        {
+                            label: 'Anomaly',
+                            data: [],
+                            borderColor: '#ef4444',
+                            backgroundColor: '#ef4444',
+                            pointRadius: 8,
+                            pointStyle: 'triangle',
+                            showLine: false
+                        },
+                        {
+                            label: 'Missing (Reconstructed)',
+                            data: [],
+                            borderColor: '#22c55e',
+                            backgroundColor: '#22c55e',
+                            pointRadius: 8,
+                            pointStyle: 'rectRot',
+                            showLine: false
+                        },
+                        {
+                            label: 'Upper Threshold',
+                            data: [],
+                            borderColor: 'rgba(239, 68, 68, 0.3)',
+                            borderDash: [5, 5],
+                            fill: false,
+                            pointRadius: 0
+                        },
+                        {
+                            label: 'Lower Threshold',
+                            data: [],
+                            borderColor: 'rgba(239, 68, 68, 0.3)',
+                            borderDash: [5, 5],
+                            fill: false,
+                            pointRadius: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 0 },
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Time Step', color: '#64748b' },
+                            ticks: { color: '#64748b' },
+                            grid: { color: '#e2e8f0' }
+                        },
+                        y: {
+                            title: { display: true, text: 'Reading Value', color: '#64748b' },
+                            ticks: { color: '#64748b' },
+                            grid: { color: '#e2e8f0' },
+                            // Auto-scale to fit all data including anomalies
+                            suggestedMin: -50,
+                            suggestedMax: 100,
+                            grace: '10%'  // Add 10% padding
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: { color: '#1e293b' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Generate synthetic data stream (matching Python logic)
+        // Normal distribution: mean=50, std=10
+        // Anomalies at indices 50, 100, 150 (values: 150, -30, 180)
+        // Missing at indices 75, 125
+        function generateDataStream(n = 200) {
+            const data = [];
+            const anomalyIndices = [50, 100, 150];  // Match Python
+            const missingIndices = [75, 125];        // Match Python
+            const anomalyValues = [150, -30, 180];   // Clear outliers
+
+            // Box-Muller transform for normal distribution
+            function gaussRandom(mean, std) {
+                let u = 0, v = 0;
+                while(u === 0) u = Math.random();
+                while(v === 0) v = Math.random();
+                return mean + std * Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+            }
+
+            let anomalyIdx = 0;
+            for (let i = 0; i < n; i++) {
+                if (anomalyIndices.includes(i)) {
+                    data.push({
+                        value: anomalyValues[anomalyIdx++ % anomalyValues.length],
+                        isAnomaly: true,
+                        isMissing: false,
+                        confidence: 0.85
+                    });
+                } else if (missingIndices.includes(i)) {
+                    data.push({
+                        value: null,
+                        isAnomaly: false,
+                        isMissing: true,
+                        reconstructed: gaussRandom(50, 10),
+                        confidence: 0.0
+                    });
+                } else {
+                    data.push({
+                        value: gaussRandom(50, 10),
+                        isAnomaly: false,
+                        isMissing: false,
+                        confidence: 0.7 + Math.random() * 0.29
+                    });
+                }
+            }
+            return data;
+        }
+
+        const syntheticData = generateDataStream(200);
+
+        function addLogEntry(message, type = 'normal') {
+            const log = document.getElementById('log-container');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[T=${currentIndex}] ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        // Pre-train CMS with baseline data (matching Python)
+        function pretrainCMS() {
+            // Train with 100 baseline values from normal distribution (mean=50, std=10)
+            for (let i = 0; i < 100; i++) {
+                let u = 0, v = 0;
+                while(u === 0) u = Math.random();
+                while(v === 0) v = Math.random();
+                const val = 50 + 10 * Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+                const bin = Math.floor(val / 5);  // quantize to bin_size=5
+                cms.update(bin);
+            }
+        }
+
+        // Initialize CMS with baseline
+        pretrainCMS();
+
+        function runSimulation() {
+            if (currentIndex >= syntheticData.length || isPaused) {
+                return;
+            }
+
+            const point = syntheticData[currentIndex];
+            const label = currentIndex;
+
+            // Add to chart
+            streamingChart.data.labels.push(label);
+
+            if (point.isMissing) {
+                streamingChart.data.datasets[0].data.push(null);
+                streamingChart.data.datasets[1].data.push(null);  // Keep anomaly dataset aligned
+                streamingChart.data.datasets[2].data.push(point.reconstructed);
+                addLogEntry(`Missing data detected. Reconstructed: ${point.reconstructed.toFixed(2)}`, 'missing');
+            } else {
+                streamingChart.data.datasets[0].data.push(point.value);
+                streamingChart.data.datasets[2].data.push(null);  // No reconstruction needed
+
+                // Update CMS
+                const bin = Math.floor(point.value / 5);  // Match Python bin_size=5
+                updateCMSDisplay(bin);
+
+                // Check if anomaly (using z-score logic)
+                const isDetectedAnomaly = point.isAnomaly || Math.abs(point.value - 50) > 35;  // ~3.5 std
+
+                if (isDetectedAnomaly) {
+                    streamingChart.data.datasets[1].data.push(point.value);
+                    const reason = point.value > 100 ? 'extreme high' : point.value < 0 ? 'extreme low' : 'statistical outlier';
+                    addLogEntry(`ANOMALY: value=${point.value.toFixed(2)}, reason: ${reason}`, 'anomaly');
+                } else {
+                    streamingChart.data.datasets[1].data.push(null);
+                    // Only update CMS with non-anomalous data (MIDAS-F filtering)
+                    cms.update(bin);
+                }
+            }
+
+            // Update thresholds (mean +/- 3*std approximation)
+            const recentData = syntheticData.slice(Math.max(0, currentIndex - 50), currentIndex + 1)
+                .filter(p => p.value !== null)
+                .map(p => p.value);
+
+            if (recentData.length > 2) {
+                const mean = recentData.reduce((a, b) => a + b, 0) / recentData.length;
+                const std = Math.sqrt(recentData.reduce((a, b) => a + (b - mean) ** 2, 0) / recentData.length);
+                streamingChart.data.datasets[3].data.push(mean + 3 * std);
+                streamingChart.data.datasets[4].data.push(mean - 3 * std);
+            } else {
+                streamingChart.data.datasets[3].data.push(null);
+                streamingChart.data.datasets[4].data.push(null);
+            }
+
+            // Keep only last 100 points visible
+            if (streamingChart.data.labels.length > 100) {
+                streamingChart.data.labels.shift();
+                streamingChart.data.datasets.forEach(ds => ds.data.shift());
+            }
+
+            streamingChart.update();
+            currentIndex++;
+
+            // Note: Stats panel shows Case Study data (fixed), not simulation data
+            // Simulation stats are shown in the log
+        }
+
+        // =================================================================
+        // Event Handlers
+        // =================================================================
+        document.getElementById('btn-start').addEventListener('click', function() {
+            if (simulationInterval) return;
+
+            this.disabled = true;
+            document.getElementById('btn-pause').disabled = false;
+            isPaused = false;
+
+            const speed = parseInt(document.getElementById('speed-select').value);
+            simulationInterval = setInterval(runSimulation, speed);
+            addLogEntry('Simulation started...');
+        });
+
+        document.getElementById('btn-pause').addEventListener('click', function() {
+            isPaused = !isPaused;
+            this.textContent = isPaused ? 'Resume' : 'Pause';
+            addLogEntry(isPaused ? 'Simulation paused' : 'Simulation resumed');
+        });
+
+        document.getElementById('btn-reset').addEventListener('click', function() {
+            clearInterval(simulationInterval);
+            simulationInterval = null;
+            currentIndex = 0;
+            isPaused = false;
+
+            document.getElementById('btn-start').disabled = false;
+            document.getElementById('btn-pause').disabled = true;
+            document.getElementById('btn-pause').textContent = 'Pause';
+
+            // Reset chart
+            streamingChart.data.labels = [];
+            streamingChart.data.datasets.forEach(ds => ds.data = []);
+            streamingChart.update();
+
+            // Reset CMS
+            cms.table = Array(4).fill(null).map(() => Array(10).fill(0));
+            cms.totalCount = 0;
+            initCMSGrid();
+
+            // Reset log
+            document.getElementById('log-container').innerHTML = '<div class="log-entry">System reset. Ready to process data stream...</div>';
+
+            // Reset stats
+            document.getElementById('stat-anomalies').textContent = '3';
+            document.getElementById('stat-spoofed').textContent = '1';
+            document.getElementById('stat-missing').textContent = '2';
+        });
+
+        // =================================================================
+        // Initialize
+        // =================================================================
+        populateSensorTable();
+        initChart();
+        initCMSGrid();
+    </script>
+</body>
+</html>
